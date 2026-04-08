@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grid Computing Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      pre,
+      textarea,
+      input[type="text"]#termInput,
+      .font-mono {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Ultra-sleek minimalist scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #52525b;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-[#09090b] text-zinc-300 antialiased h-screen flex flex-col selection:bg-cyan-900/50 selection:text-cyan-100"
+  >
+    <header
+      class="bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-6 py-4 flex justify-between items-center z-10"
+    >
+      <div class="flex items-center gap-3">
+        <div
+          class="h-6 w-6 rounded flex items-center justify-center bg-gradient-to-tr from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
+        >
+          <svg
+            class="w-4 h-4 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
+          </svg>
+        </div>
+        <h1 class="text-sm font-semibold tracking-wide text-zinc-100">
+          GRID <span class="text-zinc-500 font-normal">OS 9.0</span>
+        </h1>
+      </div>
+      <div
+        class="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5"
+      >
+        <span
+          class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"
+        ></span>
+        <span class="text-xs text-zinc-400 font-medium tracking-wide"
+          >Connected</span
+        >
+      </div>
+    </header>
+
+    <main
+      class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 min-h-0 max-w-[1600px] w-full mx-auto"
+    >
+      <div class="col-span-1 lg:col-span-5 flex flex-col gap-6 min-h-0">
+        <div
+          class="bg-[#18181b] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4"
+        >
+          <div>
+            <h2
+              class="text-xs uppercase tracking-widest text-zinc-500 font-semibold mb-1"
+            >
+              Filesystem
+            </h2>
+            <p class="text-sm text-zinc-400">
+              Target a local .c file or project directory.
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              id="pathInput"
+              placeholder="/home/user/my_project"
+              class="flex-1 bg-[#09090b] border border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-zinc-700 shadow-inner"
+            />
+            <button
+              onclick="dispatchPath()"
+              class="bg-zinc-100 hover:bg-white text-zinc-900 px-5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-white/5 active:scale-95"
+            >
+              Dispatch
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="bg-[#18181b] rounded-2xl border border-white/5 shadow-xl flex flex-col min-h-0 flex-1 overflow-hidden"
+        >
+          <div
+            class="flex justify-between items-center px-5 py-4 border-b border-white/5 bg-[#18181b]"
+          >
+            <h2
+              class="text-xs uppercase tracking-widest text-zinc-500 font-semibold"
+            >
+              Live Editor
+            </h2>
+            <button
+              onclick="dispatchCode()"
+              class="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-4 py-1.5 rounded-lg text-sm font-medium transition-all active:scale-95"
+            >
+              Run Code
+            </button>
+          </div>
+          <textarea
+            id="codeInput"
+            spellcheck="false"
+            class="flex-1 bg-[#09090b] w-full p-5 font-mono text-sm text-zinc-300 focus:outline-none resize-none placeholder:text-zinc-700 shadow-inner"
+            placeholder='#include <stdio.h>&#10;&#10;int main() {&#10;    printf("Grid is online.\\n");&#10;    return 0;&#10;}'
+          ></textarea>
+        </div>
+      </div>
+
+      <div
+        class="col-span-1 lg:col-span-7 bg-[#000000] rounded-2xl border border-white/10 shadow-2xl flex flex-col min-h-0 relative overflow-hidden ring-1 ring-white/5"
+      >
+        <div
+          class="bg-[#18181b] px-4 py-3 flex justify-between items-center border-b border-white/5 select-none"
+        >
+          <div class="flex gap-2 items-center">
+            <div
+              class="w-3 h-3 rounded-full bg-red-500/80 border border-red-500/50"
+            ></div>
+            <div
+              class="w-3 h-3 rounded-full bg-yellow-500/80 border border-yellow-500/50"
+            ></div>
+            <div
+              class="w-3 h-3 rounded-full bg-green-500/80 border border-green-500/50"
+            ></div>
+            <span class="ml-3 text-xs font-mono text-zinc-500"
+              >grid@node-1:~</span
+            >
+          </div>
+          <button
+            onclick="document.getElementById('terminal').innerHTML = ''"
+            class="text-xs font-mono text-zinc-600 hover:text-zinc-300 transition-colors"
+          >
+            clear
+          </button>
+        </div>
+
+        <pre
+          id="terminal"
+          class="flex-1 overflow-y-auto p-5 font-mono text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed"
+        ></pre>
+
+        <div
+          class="bg-[#09090b] border-t border-white/5 px-4 py-3 flex items-center gap-3 transition-colors focus-within:bg-[#121215]"
+        >
+          <span class="text-cyan-500 font-mono text-sm font-bold animate-pulse"
+            >❯</span
+          >
+          <input
+            type="text"
+            id="termInput"
+            placeholder="Awaiting runtime input..."
+            class="flex-1 bg-transparent border-none outline-none font-mono text-sm text-zinc-200 placeholder:text-zinc-700"
+            onkeypress="handleTerminalInput(event)"
+          />
+          <button
+            onclick="sendTerminalInput()"
+            class="text-xs text-zinc-500 hover:text-cyan-400 font-mono tracking-wider transition-colors px-2"
+          >
+            ENTER ↵
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const socket = io();
+      const terminal = document.getElementById("terminal");
+
+      // Append text to terminal and auto-scroll
+      socket.on("terminal_output", (data) => {
+        const cleanText = data.replace(/\x1b\[[0-9;]*m/g, "");
+        terminal.innerHTML += cleanText;
+        terminal.scrollTop = terminal.scrollHeight;
+      });
+
+      function appendToTerminal(text, type = "info") {
+        const color = type === "error" ? "text-red-400" : "text-zinc-400";
+        terminal.innerHTML += `<span class="${color}">${text}</span>\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+
+      async function dispatchPath() {
+        const path = document.getElementById("pathInput").value;
+        if (!path)
+          return appendToTerminal("> Error: No path provided.", "error");
+
+        appendToTerminal(`\n> Dispatching: ${path}...`);
+        await fetch("/api/run-path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetPath: path, socketId: socket.id }),
+        });
+        document.getElementById("pathInput").value = "";
+      }
+
+      async function dispatchCode() {
+        const code = document.getElementById("codeInput").value;
+        if (!code)
+          return appendToTerminal("> Error: Editor is empty.", "error");
+
+        appendToTerminal(`\n> Compiling and dispatching memory payload...`);
+        await fetch("/api/run-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code, socketId: socket.id }),
+        });
+      }
+
+      // Input Bar Functions
+      function sendTerminalInput() {
+        const inputEl = document.getElementById("termInput");
+        const text = inputEl.value;
+        if (text) {
+          // Echo input to terminal in a subtle cyan color
+          terminal.innerHTML += `<span class="text-cyan-400/70">> ${text}</span>\n`;
+          terminal.scrollTop = terminal.scrollHeight;
+
+          // Send to Node backend
+          socket.emit("terminal_input", text);
+          inputEl.value = "";
+        }
+      }
+
+      function handleTerminalInput(event) {
+        if (event.key === "Enter") {
+          sendTerminalInput();
+        }
+      }
+    </script>
+  </body>
+</html>
