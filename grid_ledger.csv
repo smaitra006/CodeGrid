@@ -1,3 +1,0 @@
-Timestamp,Event,IP,Detail
-2026-04-10 21:06:41,LEADER_ELECTED,10.47.179.76,"This node won the election"
-2026-04-10 21:06:42,PEER_CONNECT,10.47.179.125,"Outbound peer TCP established"

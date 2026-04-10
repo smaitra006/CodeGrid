@@ -10,7 +10,11 @@ sender: sender.c common.h
 	$(CC) $(CFLAGS) -o $@ sender.c
 
 clean:
-	rm -f node sender grid_ledger.csv /tmp/node_*.c /tmp/node_*.out \
-	      /tmp/node_*_dir /tmp/node_*.tar.gz /tmp/grid_send.tar.gz
+	rm -f node sender grid_ledger.csv \
+	      /tmp/node_*.c /tmp/node_*.out \
+	      /tmp/node_*_dir /tmp/node_*.tar.gz \
+	      /tmp/grid_send.tar.gz \
+	      /tmp/grid_web_*.c \
+	      rm -rf /tmp/grid_project_*
 
 .PHONY: all clean

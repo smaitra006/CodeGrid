@@ -1,16 +1,4 @@
-/*
- * sender.c  —  Grid Dispatcher / Console
- * ─────────────────────────────────────────────────────────────────────────────
- * Connects to any grid node; if that node is not the leader it will receive a
- * MSG_REDIRECT pointing to the current leader and transparently reconnect.
- *
- * If the connection drops mid-job (leader died + election happened), the
- * console prints a warning and offers to resubmit the last job automatically
- * once it reconnects to the new leader.
- * ─────────────────────────────────────────────────────────────────────────────
- */
 #include "common.h"
-
 #include <arpa/inet.h>
 #include <poll.h>
 #include <stdio.h>
@@ -24,13 +12,11 @@
 #define MAX_RECONNECT_TRIES 5
 #define RECONNECT_DELAY_SEC 2
 
-/* ── Path / payload remembered for resubmission ─────────────────────────── */
 static char g_last_path[1024] = {0};
 static char *g_last_payload = NULL;
 static long g_last_payload_sz = 0;
 static int g_last_is_project = 0;
 
-/* ── Helpers ─────────────────────────────────────────────────────────────── */
 static void clean_path(char *path) {
   int len = (int)strlen(path);
   while (len > 0 && (path[len - 1] == '\n' || path[len - 1] == '\r' ||
@@ -54,34 +40,22 @@ static void clean_path(char *path) {
   *wr = '\0';
 }
 
-/*
- * Connect to ip:PORT, perform auth handshake, and handle redirects.
- * Returns a connected+authenticated socket fd, or -1 on total failure.
- */
-static int dial_leader(const char *initial_ip) {
-  char cur_ip[64];
-  strncpy(cur_ip, initial_ip, sizeof cur_ip - 1);
-
+static int dial_node(const char *ip) {
   for (int attempt = 0; attempt < MAX_RECONNECT_TRIES; attempt++) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in srv = {.sin_family = AF_INET, .sin_port = htons(PORT)};
-    inet_pton(AF_INET, cur_ip, &srv.sin_addr);
+    inet_pton(AF_INET, ip, &srv.sin_addr);
 
     if (connect(fd, (struct sockaddr *)&srv, sizeof srv) < 0) {
       close(fd);
-      printf(C_YELLOW
-             "[Reconnect] Could not reach %s, retrying in %ds...\n" C_RESET,
-             cur_ip, RECONNECT_DELAY_SEC);
+      printf(C_YELLOW "[Reconnect] Waiting for node %s (%ds)...\n" C_RESET, ip,
+             RECONNECT_DELAY_SEC);
       sleep(RECONNECT_DELAY_SEC);
       continue;
     }
 
-    /* Send auth */
     send_msg(fd, MSG_AUTH, "HELLO", 5);
 
-    /* Read response — may be MSG_REDIRECT or the node just stays silent
-       (original server.c never replied to MSG_AUTH, so we only consume
-        a redirect if one arrives within a short timeout). */
     struct pollfd pf = {fd, POLLIN, 0};
     if (poll(&pf, 1, 1500) > 0 && (pf.revents & POLLIN)) {
       MsgHeader hdr;
@@ -89,25 +63,7 @@ static int dial_leader(const char *initial_ip) {
         close(fd);
         continue;
       }
-
-      if (hdr.type == MSG_REDIRECT) {
-        RedirectMsg redir;
-        if (hdr.payload_len >= sizeof redir)
-          recv_all(fd, &redir, sizeof redir);
-        close(fd);
-
-        if (strcmp(redir.leader_ip, "unknown") == 0) {
-          printf(C_YELLOW "[Grid] No leader elected yet. Waiting...\n" C_RESET);
-          sleep(RECONNECT_DELAY_SEC);
-          /* Retry same node — election may have just finished */
-          continue;
-        }
-        printf(C_CYAN "[Grid] Redirected to leader at %s\n" C_RESET,
-               redir.leader_ip);
-        strncpy(cur_ip, redir.leader_ip, sizeof cur_ip - 1);
-        continue; /* loop: connect to leader */
-
-      } else if (hdr.type == MSG_REJECTED) {
+      if (hdr.type == MSG_REJECTED) {
         char *buf = hdr.payload_len ? malloc(hdr.payload_len + 1) : NULL;
         if (buf) {
           recv_all(fd, buf, hdr.payload_len);
@@ -117,34 +73,18 @@ static int dial_leader(const char *initial_ip) {
         if (buf)
           free(buf);
         close(fd);
-        return -1; /* banned or hard rejection */
-      } else {
-        /* Some other message arrived first (e.g. initial stream).
-           Put it back? We can't — just handle it in the main loop. */
-        /* For now: skip it and proceed */
-        if (hdr.payload_len) {
-          char *tmp = malloc(hdr.payload_len);
-          recv_all(fd, tmp, hdr.payload_len);
-          free(tmp);
-        }
+        return -1;
       }
     }
-    /* Connected and authenticated */
-    printf(C_BG_BLUE C_BOLD " GRID CONSOLE CONNECTED | LEADER: %s " C_RESET
-                            "\n",
-           cur_ip);
-    strncpy(cur_ip, cur_ip, sizeof cur_ip);
+    printf(C_BG_BLUE C_BOLD " GRID CONSOLE CONNECTED | NODE: %s " C_RESET "\n",
+           ip);
     return fd;
   }
-
   printf(C_RED "[Grid] Failed to connect after %d attempts.\n" C_RESET,
          MAX_RECONNECT_TRIES);
   return -1;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   main
-   ══════════════════════════════════════════════════════════════════════════ */
 int main(void) {
   char initial_ip[64] = {0};
 
@@ -153,19 +93,18 @@ int main(void) {
          "     [ DISPATCHER V9.0 ] Grid P2P Console        \n"
          "======================================================\n\n" C_RESET);
   printf(C_CYAN C_BOLD "Welcome to Grid Console.\n" C_RESET);
-  printf("Enter any node IP (e.g., 127.0.0.1): ");
+  printf("Enter Local Node IP (e.g., 127.0.0.1): ");
   if (fgets(initial_ip, sizeof initial_ip, stdin))
     initial_ip[strcspn(initial_ip, "\n")] = '\0';
   if (strlen(initial_ip) == 0)
     strcpy(initial_ip, "127.0.0.1");
 
-  int sockfd = dial_leader(initial_ip);
+  int sockfd = dial_node(initial_ip);
   if (sockfd < 0)
     return 1;
 
   printf(C_GREEN "Usage: Drag a .c file OR a project folder here and hit "
                  "Enter!\n" C_RESET);
-
   int state = STATE_IDLE;
 
 reconnect_loop:;
@@ -176,11 +115,10 @@ reconnect_loop:;
       printf(C_MAGENTA "\nGRID> " C_RESET);
       fflush(stdout);
     }
-
     if (poll(fds, 2, -1) < 0)
       break;
 
-    /* ── stdin input ───────────────────────────────────────────────── */
+    /* ── stdin input ── */
     if (fds[0].revents & POLLIN) {
       char input_buf[1024];
       ssize_t bytes = read(STDIN_FILENO, input_buf, sizeof(input_buf) - 1);
@@ -201,7 +139,6 @@ reconnect_loop:;
           continue;
         }
 
-        /* Remember path for potential resubmission */
         strncpy(g_last_path, input_buf, sizeof g_last_path - 1);
         if (g_last_payload) {
           free(g_last_payload);
@@ -228,7 +165,9 @@ reconnect_loop:;
           g_last_payload_sz = sz;
           g_last_is_project = 1;
 
-          printf(C_CYAN "Dispatching Project (%ld bytes)...\n" C_RESET, sz);
+          printf(C_CYAN
+                 "Dispatching Project (%ld bytes) to Local Node...\n" C_RESET,
+                 sz);
           send_msg(sockfd, MSG_PROJECT_REQ, g_last_payload, (uint32_t)sz);
           state = STATE_BUSY;
 
@@ -247,37 +186,34 @@ reconnect_loop:;
           g_last_payload_sz = sz;
           g_last_is_project = 0;
 
-          printf(C_CYAN "Dispatching file (%ld bytes)...\n" C_RESET, sz);
+          printf(C_CYAN
+                 "Dispatching file (%ld bytes) to Local Node...\n" C_RESET,
+                 sz);
           send_msg(sockfd, MSG_EXEC_REQ, g_last_payload, (uint32_t)sz);
           state = STATE_BUSY;
         }
-
-      } else { /* STATE_BUSY — forward stdin to job */
+      } else {
         send_msg(sockfd, MSG_STREAM_IN, input_buf, (uint32_t)bytes);
       }
     }
 
-    /* ── network response ──────────────────────────────────────────── */
+    /* ── network response ── */
     if (fds[1].revents & POLLIN) {
       MsgHeader hdr;
       if (recv_hdr(sockfd, &hdr) < 0) {
-        /* Connection dropped — leader may have died */
-        printf(C_RED "\n[Grid] Disconnected from leader!\n" C_RESET);
-
+        printf(C_RED "\n[Grid] Local node disconnected!\n" C_RESET);
         if (state == STATE_BUSY) {
           printf(C_YELLOW
-                 "[Grid] A job was running. Attempting reconnect...\n" C_RESET);
+                 "[Grid] A job was running. Waiting to reconnect...\n" C_RESET);
           close(sockfd);
-          sleep(RECONNECT_DELAY_SEC + 2); /* wait for election to settle */
-          sockfd = dial_leader(initial_ip);
+          sleep(RECONNECT_DELAY_SEC);
+          sockfd = dial_node(initial_ip);
           if (sockfd < 0)
             break;
 
-          /* Offer automatic resubmission */
           if (g_last_payload && g_last_payload_sz > 0) {
-            printf(C_YELLOW "[Grid] Reconnected to new leader.\n"
-                            "       Last job: %s\n"
-                            "       Resubmit automatically? [y/n]: " C_RESET,
+            printf(C_YELLOW "[Grid] Reconnected.\n       Last job: %s\n       "
+                            "Resubmit automatically? [y/n]: " C_RESET,
                    g_last_path);
             fflush(stdout);
             char ans[8] = {0};
@@ -338,28 +274,6 @@ reconnect_loop:;
         }
         state = STATE_IDLE;
         break;
-      case MSG_REDIRECT: {
-        /* We may get a redirect if our leader just stepped down */
-        RedirectMsg *redir = (RedirectMsg *)out_buf;
-        if (redir && strcmp(redir->leader_ip, "unknown") != 0) {
-          printf(C_YELLOW
-                 "\n[Grid] Leader changed, reconnecting to %s...\n" C_RESET,
-                 redir->leader_ip);
-          close(sockfd);
-          sockfd = dial_leader(redir->leader_ip);
-          if (sockfd < 0) {
-            if (out_buf)
-              free(out_buf);
-            goto done;
-          }
-          state = STATE_IDLE;
-          fds[1].fd = sockfd;
-          if (out_buf)
-            free(out_buf);
-          goto reconnect_loop;
-        }
-        break;
-      }
       default:
         break;
       }
@@ -368,7 +282,6 @@ reconnect_loop:;
     }
   }
 
-done:
   close(sockfd);
   if (g_last_payload)
     free(g_last_payload);
