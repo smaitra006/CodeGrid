@@ -940,14 +940,37 @@ static void *peer_loop_thread(void *arg) {
 
     case MSG_LEADER_ANN: {
       NodeInfoMsg *m = (NodeInfoMsg *)pl;
+
+      /* --- NEW FIX: SPLIT-BRAIN RESOLUTION --- */
+      if (m->node_id < g_my_id) {
+        /* A weaker node thinks it is the leader. Challenge it! */
+        grid_log(
+            C_YELLOW,
+            "[Split-Brain] Weaker node %s claims leadership. Initiating Coup!",
+            m->ip);
+        start_election();
+        break;
+      }
+      /* --------------------------------------- */
+
       g_leader_id = m->node_id;
       g_last_ldr_hb = time(NULL);
+
       pthread_mutex_lock(&g_elec_mu);
       g_elec_active = 0;
-      if (g_role != LEADER)
+
+      /* --- NEW FIX: GRACEFUL STEP DOWN --- */
+      if (g_role == LEADER && g_my_id != m->node_id) {
+        grid_log(C_YELLOW,
+                 "[Split-Brain] Stronger leader detected. Yielding throne.");
         g_role = FOLLOWER;
+      } else if (g_role != LEADER) {
+        g_role = FOLLOWER;
+      }
+      /* ----------------------------------- */
+
       pthread_mutex_unlock(&g_elec_mu);
-      grid_log(C_GREEN, "[Election] New leader: %s", m->ip);
+      grid_log(C_GREEN, "[Election] New leader confirmed: %s", m->ip);
 
       /* If we have an active job, tell the new leader */
       pthread_mutex_lock(&g_worker_mu);
