@@ -7,51 +7,114 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+      :root {
+        --bg-color: #e2e8f0; /* Soft slate/blue-gray */
+        --shadow-light: #ffffff;
+        --shadow-dark: #cbd5e1;
+      }
 
       body {
+        background-color: var(--bg-color);
+        color: #475569;
         font-family: "Inter", sans-serif;
       }
-      pre,
-      textarea,
-      input[type="text"]#termInput,
       .font-mono {
         font-family: "JetBrains Mono", monospace;
       }
 
-      /* Ultra-sleek minimalist scrollbar */
+      /* Harmonized Neumorphic Utilities */
+      .neu-out {
+        background: var(--bg-color);
+        box-shadow:
+          8px 8px 16px var(--shadow-dark),
+          -8px -8px 16px var(--shadow-light);
+      }
+      .neu-in {
+        background: var(--bg-color);
+        box-shadow:
+          inset 6px 6px 12px var(--shadow-dark),
+          inset -6px -6px 12px var(--shadow-light);
+      }
+      .neu-btn {
+        background: var(--bg-color);
+        box-shadow:
+          5px 5px 10px var(--shadow-dark),
+          -5px -5px 10px var(--shadow-light);
+        transition: all 0.2s ease-in-out;
+      }
+      .neu-btn:hover {
+        box-shadow:
+          7px 7px 14px var(--shadow-dark),
+          -7px -7px 14px var(--shadow-light);
+        transform: translateY(-1px);
+      }
+      .neu-btn:active {
+        box-shadow:
+          inset 4px 4px 8px var(--shadow-dark),
+          inset -4px -4px 8px var(--shadow-light);
+        transform: translateY(1px);
+      }
+
+      .neu-btn-primary {
+        background: #6366f1; /* Indigo */
+        box-shadow:
+          6px 6px 12px var(--shadow-dark),
+          -6px -6px 12px var(--shadow-light);
+        color: white;
+        transition: all 0.2s ease;
+      }
+      .neu-btn-primary:hover {
+        background: #4f46e5;
+      }
+      .neu-btn-primary:active {
+        box-shadow:
+          inset 4px 4px 8px rgba(0, 0, 0, 0.2),
+          inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+      }
+
+      /* Terminal Embedded Styling */
+      .neu-terminal-container {
+        background: #1e1e2e; /* Soft dark theme (Catppuccin style) */
+        box-shadow:
+          inset 8px 8px 16px rgba(0, 0, 0, 0.4),
+          inset -8px -8px 16px rgba(255, 255, 255, 0.05);
+      }
+
+      /* Scrollbar */
       ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: #3f3f46;
+        background: #94a3b8;
         border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #52525b;
+        background: #6366f1;
       }
     </style>
   </head>
   <body
-    class="bg-[#09090b] text-zinc-300 antialiased h-screen flex flex-col selection:bg-cyan-900/50 selection:text-cyan-100"
+    class="h-screen flex flex-col antialiased selection:bg-indigo-200 selection:text-indigo-900"
   >
     <header
-      class="bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-6 py-4 flex justify-between items-center z-10"
+      class="neu-out px-8 py-5 flex justify-between items-center z-10 mx-6 mt-6 rounded-3xl"
     >
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <div
-          class="h-6 w-6 rounded flex items-center justify-center bg-gradient-to-tr from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
+          class="h-10 w-10 neu-out rounded-full flex items-center justify-center"
         >
           <svg
-            class="w-4 h-4 text-white"
+            class="w-5 h-5 text-indigo-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            stroke-width="2"
+            stroke-width="2.5"
           >
             <path
               stroke-linecap="round"
@@ -60,134 +123,176 @@
             />
           </svg>
         </div>
-        <h1 class="text-sm font-semibold tracking-wide text-zinc-100">
-          GRID <span class="text-zinc-500 font-normal">OS 9.0</span>
+        <h1 class="text-xl font-bold tracking-tight text-slate-700">
+          Grid <span class="text-indigo-500 font-extrabold">OS 9.0</span>
         </h1>
       </div>
-      <div
-        class="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5"
-      >
+      <div class="flex items-center gap-3 neu-in px-5 py-2.5 rounded-full">
         <span
-          class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"
+          class="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_#6366f1]"
         ></span>
-        <span class="text-xs text-zinc-400 font-medium tracking-wide"
-          >Connected</span
+        <span class="text-xs text-slate-600 font-bold tracking-widest uppercase"
+          >System Online</span
         >
       </div>
     </header>
 
     <main
-      class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 min-h-0 max-w-[1600px] w-full mx-auto"
+      class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 min-h-0 w-full mx-auto max-w-[1800px]"
     >
-      <div class="col-span-1 lg:col-span-5 flex flex-col gap-6 min-h-0">
+      <div class="col-span-1 lg:col-span-5 flex flex-col gap-8 min-h-0">
         <div
-          class="bg-[#18181b] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4"
+          class="neu-out rounded-[2rem] p-7 flex flex-col min-h-0 flex-1 relative group"
         >
-          <div>
+          <div class="flex justify-between items-center mb-5">
             <h2
-              class="text-xs uppercase tracking-widest text-zinc-500 font-semibold mb-1"
+              class="text-xs font-bold uppercase tracking-widest text-slate-500"
             >
-              Filesystem
+              Payload Editor
             </h2>
-            <p class="text-sm text-zinc-400">
-              Target a local .c file or project directory.
-            </p>
-          </div>
-          <div class="flex gap-2">
+
             <input
-              type="text"
-              id="pathInput"
-              placeholder="/home/user/my_project"
-              class="flex-1 bg-[#09090b] border border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-zinc-700 shadow-inner"
+              type="file"
+              id="filePicker"
+              class="hidden"
+              accept=".c,.cpp,.h,.txt"
+              onchange="handleFileSelect(event)"
             />
             <button
-              onclick="dispatchPath()"
-              class="bg-zinc-100 hover:bg-white text-zinc-900 px-5 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg shadow-white/5 active:scale-95"
+              onclick="document.getElementById('filePicker').click()"
+              class="neu-btn px-5 py-2 rounded-full text-xs font-bold text-slate-600 tracking-wider flex items-center gap-2"
             >
-              Dispatch
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                ></path>
+              </svg>
+              Load File
+            </button>
+          </div>
+
+          <textarea
+            id="codeInput"
+            spellcheck="false"
+            class="flex-1 neu-in rounded-2xl w-full p-6 font-mono text-sm text-slate-700 focus:outline-none resize-none placeholder:text-slate-400"
+            placeholder='// Write code or load a file...&#10;&#10;#include <stdio.h>&#10;&#10;int main() {&#10;    printf("Grid payload executing.\\n");&#10;    return 0;&#10;}'
+          ></textarea>
+
+          <div class="mt-6">
+            <button
+              onclick="dispatchCode()"
+              class="neu-btn-primary w-full py-4 text-sm font-bold uppercase tracking-widest rounded-2xl"
+            >
+              Dispatch to Grid
             </button>
           </div>
         </div>
 
-        <div
-          class="bg-[#18181b] rounded-2xl border border-white/5 shadow-xl flex flex-col min-h-0 flex-1 overflow-hidden"
-        >
-          <div
-            class="flex justify-between items-center px-5 py-4 border-b border-white/5 bg-[#18181b]"
-          >
+        <div class="neu-out rounded-3xl p-6 flex flex-col gap-4">
+          <div class="flex justify-between items-center px-2">
             <h2
-              class="text-xs uppercase tracking-widest text-zinc-500 font-semibold"
+              class="text-xs font-bold uppercase tracking-widest text-slate-500"
             >
-              Live Editor
+              Advanced Dispatch
             </h2>
-            <button
-              onclick="dispatchCode()"
-              class="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-4 py-1.5 rounded-lg text-sm font-medium transition-all active:scale-95"
-            >
-              Run Code
-            </button>
           </div>
-          <textarea
-            id="codeInput"
-            spellcheck="false"
-            class="flex-1 bg-[#09090b] w-full p-5 font-mono text-sm text-zinc-300 focus:outline-none resize-none placeholder:text-zinc-700 shadow-inner"
-            placeholder='#include <stdio.h>&#10;&#10;int main() {&#10;    printf("Grid is online.\\n");&#10;    return 0;&#10;}'
-          ></textarea>
+
+          <input
+            type="file"
+            id="folderPicker"
+            webkitdirectory
+            directory
+            class="hidden"
+            onchange="handleFolderSelect(event)"
+          />
+
+          <button
+            onclick="document.getElementById('folderPicker').click()"
+            class="neu-in hover:bg-slate-200/50 transition-colors rounded-2xl p-5 border-2 border-dashed border-slate-400/30 flex flex-col items-center justify-center gap-3"
+          >
+            <div
+              class="h-10 w-10 neu-out rounded-full flex items-center justify-center text-indigo-500"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
+                ></path>
+              </svg>
+            </div>
+            <div class="text-center">
+              <span class="block text-sm font-bold text-slate-600"
+                >Upload Project Folder</span
+              >
+              <span class="block text-xs font-medium text-slate-400 mt-1"
+                >Select a local directory to package and send</span
+              >
+            </div>
+          </button>
         </div>
       </div>
 
       <div
-        class="col-span-1 lg:col-span-7 bg-[#000000] rounded-2xl border border-white/10 shadow-2xl flex flex-col min-h-0 relative overflow-hidden ring-1 ring-white/5"
+        class="col-span-1 lg:col-span-7 neu-out rounded-[2rem] p-7 flex flex-col min-h-0 relative"
       >
-        <div
-          class="bg-[#18181b] px-4 py-3 flex justify-between items-center border-b border-white/5 select-none"
-        >
-          <div class="flex gap-2 items-center">
-            <div
-              class="w-3 h-3 rounded-full bg-red-500/80 border border-red-500/50"
-            ></div>
-            <div
-              class="w-3 h-3 rounded-full bg-yellow-500/80 border border-yellow-500/50"
-            ></div>
-            <div
-              class="w-3 h-3 rounded-full bg-green-500/80 border border-green-500/50"
-            ></div>
-            <span class="ml-3 text-xs font-mono text-zinc-500"
-              >grid@node-1:~</span
-            >
-          </div>
+        <div class="flex justify-between items-center mb-5">
+          <span
+            class="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-3"
+          >
+            Terminal Output
+          </span>
           <button
             onclick="document.getElementById('terminal').innerHTML = ''"
-            class="text-xs font-mono text-zinc-600 hover:text-zinc-300 transition-colors"
+            class="text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-indigo-500 transition-colors neu-btn px-5 py-2 rounded-full"
           >
-            clear
+            Clear
           </button>
         </div>
 
-        <pre
-          id="terminal"
-          class="flex-1 overflow-y-auto p-5 font-mono text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed"
-        ></pre>
-
         <div
-          class="bg-[#09090b] border-t border-white/5 px-4 py-3 flex items-center gap-3 transition-colors focus-within:bg-[#121215]"
+          class="neu-terminal-container rounded-3xl flex-1 flex flex-col overflow-hidden ring-1 ring-white/10"
         >
-          <span class="text-cyan-500 font-mono text-sm font-bold animate-pulse"
-            >❯</span
+          <pre
+            id="terminal"
+            class="flex-1 overflow-y-auto p-6 font-mono text-[13px] text-slate-300 whitespace-pre-wrap leading-relaxed"
+          ></pre>
+
+          <div
+            class="bg-[#181825] border-t border-[#313244] px-6 py-4 flex items-center gap-3"
           >
-          <input
-            type="text"
-            id="termInput"
-            placeholder="Awaiting runtime input..."
-            class="flex-1 bg-transparent border-none outline-none font-mono text-sm text-zinc-200 placeholder:text-zinc-700"
-            onkeypress="handleTerminalInput(event)"
-          />
-          <button
-            onclick="sendTerminalInput()"
-            class="text-xs text-zinc-500 hover:text-cyan-400 font-mono tracking-wider transition-colors px-2"
-          >
-            ENTER ↵
-          </button>
+            <span
+              class="text-indigo-400 font-mono text-sm font-bold animate-pulse"
+              >❯</span
+            >
+            <input
+              type="text"
+              id="termInput"
+              placeholder="Awaiting runtime stdin..."
+              class="flex-1 bg-transparent border-none outline-none font-mono text-sm text-slate-200 placeholder:text-slate-500"
+              onkeypress="handleTerminalInput(event)"
+            />
+            <button
+              onclick="sendTerminalInput()"
+              class="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-indigo-400 transition-colors"
+            >
+              Enter ↵
+            </button>
+          </div>
         </div>
       </div>
     </main>
@@ -196,7 +301,63 @@
       const socket = io();
       const terminal = document.getElementById("terminal");
 
-      // Append text to terminal and auto-scroll
+      // Handle single file load into editor
+      function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById("codeInput").value = e.target.result;
+          appendToTerminal(
+            `\n[SYSTEM] Loaded local file: ${file.name}\n`,
+            "sys",
+          );
+        };
+        reader.readAsText(file);
+        event.target.value = "";
+      }
+
+      // Handle entire folder upload
+      async function handleFolderSelect(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+
+        appendToTerminal(
+          `\n[SYSTEM] Packaging ${files.length} files from folder...\n`,
+          "sys",
+        );
+
+        // Read all files asynchronously
+        const projectData = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          // Only read text-based files for safety/simplicity
+          if (file.size < 5000000) {
+            // skip files > 5MB
+            const text = await file.text();
+            projectData.push({
+              path: file.webkitRelativePath, // e.g., "my_folder/src/main.c"
+              content: text,
+            });
+          }
+        }
+
+        appendToTerminal(
+          `[DISPATCH] Distributing project folder to grid...\n`,
+          "sys",
+        );
+
+        // Send the JSON payload to the new Node.js endpoint
+        await fetch("/api/run-folder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: projectData, socketId: socket.id }),
+        });
+
+        event.target.value = "";
+      }
+
       socket.on("terminal_output", (data) => {
         const cleanText = data.replace(/\x1b\[[0-9;]*m/g, "");
         terminal.innerHTML += cleanText;
@@ -204,31 +365,26 @@
       });
 
       function appendToTerminal(text, type = "info") {
-        const color = type === "error" ? "text-red-400" : "text-zinc-400";
-        terminal.innerHTML += `<span class="${color}">${text}</span>\n`;
+        let colorClass = "text-slate-300";
+        if (type === "error") colorClass = "text-red-400";
+        if (type === "sys") colorClass = "text-indigo-400 font-bold";
+
+        terminal.innerHTML += `<span class="${colorClass}">${text}</span>`;
         terminal.scrollTop = terminal.scrollHeight;
-      }
-
-      async function dispatchPath() {
-        const path = document.getElementById("pathInput").value;
-        if (!path)
-          return appendToTerminal("> Error: No path provided.", "error");
-
-        appendToTerminal(`\n> Dispatching: ${path}...`);
-        await fetch("/api/run-path", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ targetPath: path, socketId: socket.id }),
-        });
-        document.getElementById("pathInput").value = "";
       }
 
       async function dispatchCode() {
         const code = document.getElementById("codeInput").value;
         if (!code)
-          return appendToTerminal("> Error: Editor is empty.", "error");
+          return appendToTerminal(
+            "\n[ERROR] Payload editor is empty.\n",
+            "error",
+          );
 
-        appendToTerminal(`\n> Compiling and dispatching memory payload...`);
+        appendToTerminal(
+          `\n[DISPATCH] Compiling and distributing memory payload...\n`,
+          "sys",
+        );
         await fetch("/api/run-code", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -236,16 +392,13 @@
         });
       }
 
-      // Input Bar Functions
       function sendTerminalInput() {
         const inputEl = document.getElementById("termInput");
         const text = inputEl.value;
         if (text) {
-          // Echo input to terminal in a subtle cyan color
-          terminal.innerHTML += `<span class="text-cyan-400/70">> ${text}</span>\n`;
+          terminal.innerHTML += `<span class="text-slate-500">> ${text}</span>\n`;
           terminal.scrollTop = terminal.scrollHeight;
 
-          // Send to Node backend
           socket.emit("terminal_input", text);
           inputEl.value = "";
         }

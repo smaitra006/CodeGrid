@@ -545,16 +545,36 @@ static void *job_monitor_thread(void *arg) {
   g_my_job_id = 0;
   pthread_mutex_unlock(&g_worker_mu);
 
+  /* --- FORTIFIED FIX: Catch ALL non-zero exits (including stdbuf masks) --- */
+  int is_error = 0;
+  int sig = 0;
+  int exit_code = 0;
+
   if (WIFSIGNALED(status)) {
-    int sig = WTERMSIG(status);
+    is_error = 1;
+    sig = WTERMSIG(status);
+  } else if (WIFEXITED(status)) {
+    exit_code = WEXITSTATUS(status);
+    if (exit_code != 0) {
+      is_error = 1;
+      if (exit_code > 128)
+        sig = exit_code - 128; /* stdbuf signal mask */
+    }
+  }
+
+  if (is_error) {
     char err[160];
     if (sig == SIGKILL || sig == SIGXCPU || sig == SIGALRM)
-      snprintf(err, sizeof err, "\n[Grid Error]: Killed (Time Limit - 2s)\n");
+      snprintf(err, sizeof err,
+               "\n[Grid Error]: Killed (Time Limit Exceeded)\n");
     else if (sig == SIGSEGV)
       snprintf(err, sizeof err, "\n[Grid Error]: SegFault (Memory Limit)\n");
-    else
+    else if (sig > 0)
       snprintf(err, sizeof err, "\n[Grid Error]: Terminated by signal %d\n",
                sig);
+    else
+      snprintf(err, sizeof err,
+               "\n[Grid Error]: Runtime Error (Exit code %d)\n", exit_code);
 
     if (ctx->is_local) {
       send_msg(ctx->disp_fd, MSG_EXEC_RESULT, err, strlen(err));
@@ -687,7 +707,7 @@ static void execute_job(uint64_t job_id, uint8_t type, const char *payload,
   pid_t pid = fork();
 
   if (pid == 0) {
-    alarm(2);
+    alarm(60);
     struct rlimit rl;
     rl.rlim_cur = 2;
     rl.rlim_max = 3;

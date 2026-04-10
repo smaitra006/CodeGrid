@@ -68,7 +68,27 @@ app.post("/api/run-path", (req, res) => {
   res.json({ success: true });
 });
 
-// Clean up processes on disconnect
+// Endpoint 3: Handle actual folder uploads from the browser
+app.post("/api/run-folder", (req, res) => {
+  const { files, socketId } = req.body;
+
+  // Create a unique temporary directory for this project
+  const projectDir = path.join("/tmp", `grid_project_${Date.now()}`);
+  fs.mkdirSync(projectDir, { recursive: true });
+
+  // Reconstruct the folder structure from the uploaded files
+  files.forEach((file) => {
+    // file.path contains the relative path (e.g., "my_project/src/main.c")
+    const fullFilePath = path.join(projectDir, file.path);
+    fs.mkdirSync(path.dirname(fullFilePath), { recursive: true });
+    fs.writeFileSync(fullFilePath, file.content);
+  });
+
+  // Dispatch the reconstructed project folder to the grid
+  dispatchToGrid(projectDir, socketId);
+  res.json({ success: true });
+});
+
 // Listen for connections and handle terminal inputs
 io.on("connection", (socket) => {
   // NEW: Listen for user input from the web terminal
