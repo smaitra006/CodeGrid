@@ -662,7 +662,7 @@ static void execute_job(uint64_t job_id, uint8_t type, const char *payload,
     char ec[600], cc[600];
     snprintf(ec, sizeof ec, "mkdir -p %s && tar -xzf %s -C %s", dir, tar, dir);
     system(ec);
-    snprintf(cc, sizeof cc, "cd %s && gcc -O2 *.c -o run.out 2>&1", dir);
+    snprintf(cc, sizeof cc, "cd %s && find . -name \"*.c\" -print0 | xargs -0 gcc -O2 -o run.out 2>&1", dir);
     FILE *fp = popen(cc, "r");
     if (fp) {
       fread(compile_out, 1, sizeof compile_out - 1, fp);
