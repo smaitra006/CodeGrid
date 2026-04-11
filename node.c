@@ -111,15 +111,38 @@ static char g_log[MAX_LOG_LINES][512];
 static int g_log_n = 0;
 static pthread_mutex_t g_log_mu = PTHREAD_MUTEX_INITIALIZER;
 
+/* Mutex for thread-safe CSV ledger writing */
+static pthread_mutex_t g_ledger_mu = PTHREAD_MUTEX_INITIALIZER;
+
 static int g_listen_fd = -1;
 
 static int peer_send_locked(Peer *p, MsgType t, const void *pl, uint32_t len);
 static void check_pending_jobs(void);
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   Logging & TUI
+   Logging & Ledger & TUI
    ══════════════════════════════════════════════════════════════════════════════
  */
+
+/* CSV Audit Trail function */
+static void write_ledger(const char *event, const char *ip, const char *detail) {
+  pthread_mutex_lock(&g_ledger_mu);
+  FILE *f = fopen("grid_ledger.csv", "a");
+  if (f) {
+    time_t now = time(NULL);
+    char ts[64];
+    strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    
+    fseek(f, 0, SEEK_END);
+    if (ftell(f) == 0) {
+      fprintf(f, "Timestamp,Event,IP,Detail\n");
+    }
+    fprintf(f, "%s,%s,%s,\"%s\"\n", ts, event, ip, detail);
+    fclose(f);
+  }
+  pthread_mutex_unlock(&g_ledger_mu);
+}
+
 static void grid_log(const char *color, const char *fmt, ...) {
   char tmp[384], msg[512];
   va_list ap;
@@ -308,8 +331,6 @@ static Job *new_job(int disp_fd, uint8_t type, const char *payload,
   return j;
 }
 
-/* Returns peer_idx, or -2 if SELF is best, or -1 if EVERYONE is busy (needs
- * queue) */
 static int find_best_worker_idx(void) {
   int best_idx = -1;
   int best_is_me = 0;
@@ -322,7 +343,7 @@ static int find_best_worker_idx(void) {
   if (am_i_free) {
     best_is_me = 1;
     min_cpu = 0.0f;
-  } // Prefer self to save network cost if free
+  }
 
   for (int i = 0; i < MAX_PEERS; i++) {
     if (!g_peers[i].slot_used || g_peers[i].fd < 0)
@@ -350,11 +371,9 @@ static void send_job_to_peer(int peer_idx, Job *j) {
   free(buf);
 }
 
-/* Forward Declaration for Local execution */
 static void execute_job(uint64_t job_id, uint8_t type, const char *payload,
                         uint32_t plen, int is_local, int disp_fd, int peer_idx);
 
-/* Centralized routing logic that handles both fresh jobs and failovers */
 static void route_job(Job *j) {
   pthread_mutex_lock(&g_peers_mu);
   int w = find_best_worker_idx();
@@ -380,7 +399,6 @@ static void route_job(Job *j) {
 static void check_pending_jobs(void) {
   pthread_mutex_lock(&g_jobs_mu);
 
-  /* 1. Prioritize suspended failover jobs */
   for (Job *j = g_jobs; j; j = j->next) {
     if (j->active && j->worker_id == 0) {
       pthread_mutex_lock(&g_peers_mu);
@@ -401,12 +419,11 @@ static void check_pending_jobs(void) {
           send_job_to_peer(w, j);
         }
         pthread_mutex_unlock(&g_jobs_mu);
-        return; /* Dispatch one at a time */
+        return; 
       }
     }
   }
 
-  /* 2. Process fresh jobs from local queue */
   pthread_mutex_lock(&g_queue_mu);
   if (q_size > 0) {
     pthread_mutex_lock(&g_peers_mu);
@@ -457,7 +474,7 @@ typedef struct {
   pid_t pid;
   int is_local;
   int disp_fd;
-  int peer_idx; /* Who delegated this to us? */
+  int peer_idx; 
   char cleanup1[256];
   char cleanup2[256];
 } JobMonCtx;
@@ -495,7 +512,6 @@ static void *job_monitor_thread(void *arg) {
   g_my_job_id = 0;
   pthread_mutex_unlock(&g_worker_mu);
 
-  /* Trigger queue check in case we were holding our own local jobs */
   check_pending_jobs();
 
   int is_error = 0;
@@ -731,7 +747,6 @@ static void *peer_loop_thread(void *arg) {
       p->cpu_avg = s / (float)r->num_threads;
       p->active_jobs = r->active_jobs;
 
-      /* Global state updated -> Check if we can dispatch anything waiting */
       check_pending_jobs();
       break;
     }
@@ -752,7 +767,6 @@ static void *peer_loop_thread(void *arg) {
       pthread_mutex_unlock(&g_worker_mu);
       break;
 
-    /* ── Worker returns results to us (Delegator) ── */
     case MSG_TAGGED_OUT: {
       TaggedHdr *th = (TaggedHdr *)pl;
       pthread_mutex_lock(&g_jobs_mu);
@@ -804,12 +818,12 @@ static void *peer_loop_thread(void *arg) {
 
   uint32_t dead_id = p->id;
   grid_log(C_RED, "[Network] Peer %s disconnected.", p->ip);
+  write_ledger("PEER_DISCONNECT", p->ip, "Peer disconnected from the grid");
+  
   kill_peer(pidx);
   p->slot_used = 0;
   g_npeers--;
 
-  /* Failover check: If this dead peer was running jobs we delegated, resurrect
-   * them */
   pthread_mutex_lock(&g_jobs_mu);
   for (Job *j = g_jobs; j; j = j->next) {
     if (j->active && j->worker_id == dead_id) {
@@ -817,11 +831,12 @@ static void *peer_loop_thread(void *arg) {
                (unsigned long long)j->id);
       send_msg(j->disp_fd, MSG_STREAM_OUT,
                "\n[Grid]: Worker node died! Seamlessly migrating job...\n", 56);
+      write_ledger("FAILOVER", "", "Job suspended/migrated after worker death");
       j->worker_id = 0;
     }
   }
   pthread_mutex_unlock(&g_jobs_mu);
-  check_pending_jobs(); /* Trigger a route attempt */
+  check_pending_jobs(); 
 
   return NULL;
 }
@@ -844,9 +859,12 @@ static int scan_for_malware(const char *code) {
 static void *dispatcher_loop_thread(void *arg) {
   DispArg *da = (DispArg *)arg;
   int fd = da->fd;
+  char ip[16];
+  strncpy(ip, da->ip, 15);
   free(da);
 
   grid_log(C_BLUE, "[Delegator] Local Dispatcher connected");
+  write_ledger("SENDER_CONNECT", ip, "Web/CLI Dispatcher connected");
 
   while (1) {
     MsgHeader hdr;
@@ -869,7 +887,9 @@ static void *dispatcher_loop_thread(void *arg) {
 
     if (hdr.type == MSG_EXEC_REQ || hdr.type == MSG_PROJECT_REQ) {
       int is_project = (hdr.type == MSG_PROJECT_REQ);
+      
       if (!is_project && scan_for_malware(buf)) {
+        write_ledger("BANNED", ip, "Malicious payload detected (Banned)");
         send_msg(fd, MSG_REJECTED, "BANNED FOR MALWARE", 18);
         if (buf)
           free(buf);
@@ -1070,7 +1090,9 @@ static void connect_to_peer(uint32_t peer_id, const char *peer_ip) {
     close(fd);
     return;
   }
+  
   grid_log(C_BLUE, "[Discovery] Connected to peer %s", their_ip);
+  write_ledger("PEER_CONNECT", their_ip, "Outbound peer TCP established");
 
   PeerLoopArg *pla = malloc(sizeof(PeerLoopArg));
   pla->peer_idx = idx;
@@ -1156,7 +1178,13 @@ static void *monitor_thread(void *arg) {
         continue;
       if (now - g_peers[i].last_hb > PEER_DEAD_SECS) {
         uint32_t dead_id = g_peers[i].id;
-        grid_log(C_YELLOW, "[Monitor] Peer %s timed out.", g_peers[i].ip);
+        
+        char dead_ip[16];
+        strncpy(dead_ip, g_peers[i].ip, 15);
+        
+        grid_log(C_YELLOW, "[Monitor] Peer %s timed out.", dead_ip);
+        write_ledger("PEER_DISCONNECT", dead_ip, "Peer timed out");
+
         kill_peer(i);
         g_peers[i].slot_used = 0;
         g_npeers--;
@@ -1164,8 +1192,10 @@ static void *monitor_thread(void *arg) {
 
         pthread_mutex_lock(&g_jobs_mu);
         for (Job *j = g_jobs; j; j = j->next) {
-          if (j->active && j->worker_id == dead_id)
+          if (j->active && j->worker_id == dead_id) {
+            write_ledger("FAILOVER", "", "Job suspended after worker timeout");
             j->worker_id = 0;
+          }
         }
         pthread_mutex_unlock(&g_jobs_mu);
         check_pending_jobs();
@@ -1248,7 +1278,7 @@ static void *tui_thread(void *arg) {
 
 static void handle_sigint(int sig) {
   (void)sig;
-  printf("\x1b[?25h\x1b[2J\x1b[H" C_GREEN "Node shut down.\n" C_RESET);
+  printf("\x1b[?25h\x1b[2J\x1b[H" C_GREEN "Node shut down safely.\n" C_RESET);
   exit(0);
 }
 
